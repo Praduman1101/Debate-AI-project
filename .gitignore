@@ -1,0 +1,29 @@
+# DebateAI - Root .gitignore
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Environment files (NEVER commit these)
+.env
+.env.local
+.env.production
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# Build outputs
+dist/
+build/
+.expo/

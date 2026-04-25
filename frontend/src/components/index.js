@@ -1,0 +1,11 @@
+// Components barrel export — import from '../components'
+export { default as ArgumentBubble }   from './ArgumentBubble';
+export { default as ArgumentInput }    from './ArgumentInput';
+export { default as DailyChallenge }   from './DailyChallenge';
+export { default as ErrorBoundary }    from './ErrorBoundary';
+export { default as NLPHints }         from './NLPHints';
+export { default as RoundProgressBar } from './RoundProgressBar';
+export { default as ScoreRadar }       from './ScoreRadar';
+export { default as StatsChart }       from './StatsChart';
+export { default as TimerBar }         from './TimerBar';
+export { TopicCardSkeleton, HistoryRowSkeleton, LeaderboardRowSkeleton } from './SkeletonLoader';

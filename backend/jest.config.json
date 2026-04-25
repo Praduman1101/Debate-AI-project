@@ -1,0 +1,14 @@
+{
+  "testEnvironment": "node",
+  "testMatch": ["**/__tests__/**/*.test.js"],
+  "setupFilesAfterFramework": [],
+  "coverageDirectory": "coverage",
+  "collectCoverageFrom": [
+    "services/**/*.js",
+    "routes/**/*.js",
+    "models/**/*.js",
+    "middleware/**/*.js"
+  ],
+  "testTimeout": 15000,
+  "verbose": true
+}

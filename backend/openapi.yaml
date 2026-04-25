@@ -1,0 +1,522 @@
+openapi: "3.0.3"
+
+info:
+  title: DebateAI API
+  description: |
+    REST API for the DebateAI debate platform.
+    Real-time debate events are handled via Socket.io — see the README for event documentation.
+  version: "1.0.0"
+  contact:
+    name: DebateAI Support
+    email: support@debateai.app
+
+servers:
+  - url: http://localhost:5000/api
+    description: Local development
+  - url: https://api.debateai.app/api
+    description: Production
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        _id:      { type: string, example: "64a1b2c3d4e5f6g7h8i9j0k1" }
+        username: { type: string, example: "debater_pro" }
+        email:    { type: string, example: "user@example.com" }
+        level:    { type: integer, example: 5 }
+        xp:       { type: integer, example: 2400 }
+        badges:   { type: array, items: { type: string }, example: ["first_win","ai_slayer"] }
+        stats:
+          type: object
+          properties:
+            totalDebates:  { type: integer, example: 48 }
+            wins:          { type: integer, example: 31 }
+            losses:        { type: integer, example: 14 }
+            avgScore:      { type: integer, example: 78 }
+            avgLogic:      { type: integer, example: 80 }
+            avgClarity:    { type: integer, example: 76 }
+            avgConfidence: { type: integer, example: 82 }
+
+    Topic:
+      type: object
+      properties:
+        _id:          { type: string }
+        title:        { type: string, example: "AI is more beneficial than dangerous to society" }
+        category:     { type: string, enum: [technology, climate, politics, education, economy, science, health, society] }
+        difficulty:   { type: string, enum: [beginner, intermediate, expert] }
+        description:  { type: string }
+        tags:         { type: array, items: { type: string } }
+        trending:     { type: boolean }
+        featured:     { type: boolean }
+        totalDebates: { type: integer }
+
+    Argument:
+      type: object
+      properties:
+        speaker:   { type: string, enum: [user, ai, opponent] }
+        text:      { type: string }
+        round:     { type: integer }
+        timestamp: { type: string, format: date-time }
+        scores:
+          type: object
+          properties:
+            logic:      { type: integer, minimum: 0, maximum: 100 }
+            relevance:  { type: integer, minimum: 0, maximum: 100 }
+            clarity:    { type: integer, minimum: 0, maximum: 100 }
+            confidence: { type: integer, minimum: 0, maximum: 100 }
+            total:      { type: integer, minimum: 0, maximum: 100 }
+        nlp:
+          type: object
+          properties:
+            sentiment:  { type: string, enum: [positive, neutral, negative] }
+            intent:     { type: string, enum: [claim, counter, evidence, rebuttal, concession, conclusion] }
+            keywords:   { type: array, items: { type: string } }
+            complexity: { type: integer }
+
+    Debate:
+      type: object
+      properties:
+        _id:         { type: string }
+        topic:
+          type: object
+          properties:
+            id:       { type: string }
+            title:    { type: string }
+            category: { type: string }
+        mode:        { type: string, enum: [ai_vs_user, user_vs_user, practice] }
+        status:      { type: string, enum: [waiting, active, completed, abandoned] }
+        difficulty:  { type: string, enum: [beginner, intermediate, expert] }
+        stances:
+          type: object
+          properties:
+            user:     { type: string, enum: [for, against] }
+            opponent: { type: string, enum: [for, against] }
+        scores:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/ScoreBreakdown'
+            opponent:
+              $ref: '#/components/schemas/ScoreBreakdown'
+        winner:   { type: string, enum: [user, opponent, draw], nullable: true }
+        feedback:
+          type: object
+          properties:
+            strengths:    { type: array, items: { type: string } }
+            weaknesses:   { type: array, items: { type: string } }
+            improvements: { type: array, items: { type: string } }
+            summary:      { type: string }
+        arguments:   { type: array, items: { $ref: '#/components/schemas/Argument' } }
+        duration:    { type: integer, description: "Duration in seconds" }
+        completedAt: { type: string, format: date-time }
+
+    ScoreBreakdown:
+      type: object
+      properties:
+        logic:      { type: integer }
+        relevance:  { type: integer }
+        clarity:    { type: integer }
+        confidence: { type: integer }
+        total:      { type: integer }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        code:  { type: string }
+
+paths:
+
+  # ── Auth ──────────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 30 }
+                email:    { type: string, format: email }
+                password: { type: string, minLength: 6 }
+      responses:
+        "201":
+          description: Registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  token:   { type: string }
+                  user:    { $ref: '#/components/schemas/User' }
+        "400": { description: Validation error or duplicate }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:    { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  token:   { type: string }
+                  user:    { $ref: '#/components/schemas/User' }
+        "401": { description: Invalid credentials }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  user:    { $ref: '#/components/schemas/User' }
+
+  /auth/profile:
+    put:
+      tags: [Auth]
+      summary: Update profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                avatar:   { type: string }
+      responses:
+        "200": { description: Profile updated }
+
+  /auth/password:
+    put:
+      tags: [Auth]
+      summary: Change password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword:     { type: string, minLength: 6 }
+      responses:
+        "200": { description: Password changed }
+        "401": { description: Wrong current password }
+
+  /auth/account:
+    delete:
+      tags: [Auth]
+      summary: Delete account permanently
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        "200": { description: Account deleted }
+
+  # ── Topics ────────────────────────────────────────────────────────────────
+  /topics:
+    get:
+      tags: [Topics]
+      summary: List debate topics
+      security: []
+      parameters:
+        - name: category
+          in: query
+          schema: { type: string, enum: [technology, climate, politics, education, economy, science, health, society] }
+        - name: difficulty
+          in: query
+          schema: { type: string, enum: [beginner, intermediate, expert] }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: Topic list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  topics:  { type: array, items: { $ref: '#/components/schemas/Topic' } }
+
+  /topics/generate:
+    get:
+      tags: [Topics]
+      summary: AI-generate debate topics
+      parameters:
+        - name: category
+          in: query
+          schema: { type: string, default: technology }
+        - name: count
+          in: query
+          schema: { type: integer, default: 5, maximum: 10 }
+      responses:
+        "200": { description: Generated topics }
+
+  /topics/{id}:
+    get:
+      tags: [Topics]
+      summary: Get topic by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Topic detail }
+        "404": { description: Not found }
+
+  # ── Debates ───────────────────────────────────────────────────────────────
+  /debates:
+    get:
+      tags: [Debates]
+      summary: Get debate history (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [completed, abandoned] }
+      responses:
+        "200":
+          description: Paginated debates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  debates: { type: array, items: { $ref: '#/components/schemas/Debate' } }
+                  total:   { type: integer }
+                  pages:   { type: integer }
+
+  /debates/stats/leaderboard:
+    get:
+      tags: [Debates]
+      summary: Top users by wins
+      security: []
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leaderboard: { type: array, items: { $ref: '#/components/schemas/User' } }
+
+  /debates/{id}:
+    get:
+      tags: [Debates]
+      summary: Full debate detail with all arguments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Full debate }
+        "403": { description: Not your debate }
+        "404": { description: Not found }
+    delete:
+      tags: [Debates]
+      summary: Remove debate from history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Deleted }
+
+  # ── Scores ────────────────────────────────────────────────────────────────
+  /scores/me:
+    get:
+      tags: [Scores]
+      summary: Personal stats and recent debates
+      responses:
+        "200":
+          description: User stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:         { $ref: '#/components/schemas/User/properties/stats' }
+                  level:         { type: integer }
+                  xp:            { type: integer }
+                  badges:        { type: array, items: { type: string } }
+                  recentDebates: { type: array, items: { $ref: '#/components/schemas/Debate' } }
+
+  /scores/finalize/{debateId}:
+    post:
+      tags: [Scores]
+      summary: Update user stats and check for new badges after a completed debate
+      parameters:
+        - name: debateId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Stats updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:   { type: boolean }
+                  stats:     { $ref: '#/components/schemas/User/properties/stats' }
+                  newBadges: { type: array, items: { type: string } }
+        "400": { description: Debate not completed }
+
+  # ── Voice ─────────────────────────────────────────────────────────────────
+  /voice/transcribe:
+    post:
+      tags: [Voice]
+      summary: Transcribe audio via OpenAI Whisper
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio: { type: string, format: binary }
+                topic: { type: string }
+      responses:
+        "200":
+          description: Transcript
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:    { type: boolean }
+                  transcript: { type: string }
+        "400": { description: No audio file }
+        "503": { description: OPENAI_API_KEY not configured }
+
+  # ── Admin ─────────────────────────────────────────────────────────────────
+  /admin/topics/bulk:
+    post:
+      tags: [Admin]
+      summary: Bulk create topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                topics:
+                  type: array
+                  maxItems: 50
+                  items: { $ref: '#/components/schemas/Topic' }
+      responses:
+        "201": { description: Topics created }
+
+  /admin/topics/{id}:
+    patch:
+      tags: [Admin]
+      summary: Update topic fields
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                trending: { type: boolean }
+                featured: { type: boolean }
+                difficulty: { type: string }
+      responses:
+        "200": { description: Updated }
+    delete:
+      tags: [Admin]
+      summary: Delete topic
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Deleted }
+
+  # ── Health ────────────────────────────────────────────────────────────────
+  /health:
+    get:
+      tags: [System]
+      summary: Server health check
+      security: []
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:        { type: string, example: OK }
+                  uptime:        { type: string, example: "1203s" }
+                  environment:   { type: string }
+                  socketClients: { type: integer }

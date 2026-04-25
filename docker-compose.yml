@@ -1,0 +1,76 @@
+version: '3.9'
+
+services:
+
+  # ── MongoDB ────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: debate-ai-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: debate_ai
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/debate_ai --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API + WebSocket ────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: debate-ai-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV:          development
+      PORT:              5000
+      MONGODB_URI:       mongodb://mongo:27017/debate_ai
+      JWT_SECRET:        ${JWT_SECRET:-supersecret_change_in_production}
+      JWT_EXPIRE:        7d
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY:    ${OPENAI_API_KEY:-}
+      CLIENT_URL:        http://localhost:3000
+    volumes:
+      # Hot reload in dev (remove in production image)
+      - ./backend:/app
+      - /app/node_modules
+    command: npm run dev
+    healthcheck:
+      test: wget -qO- http://localhost:5000/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── MongoDB Express (optional DB UI) ──────────────────────────────────────
+  mongo-express:
+    image: mongo-express:1
+    container_name: debate-ai-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongo
+    environment:
+      ME_CONFIG_MONGODB_SERVER:   mongo
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    profiles:
+      - debug   # Only starts with: docker compose --profile debug up
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  default:
+    name: debate-ai-network
