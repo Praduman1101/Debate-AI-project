@@ -1,6 +1,6 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DIFFICULTY_PERSONAS = {
   beginner: 'You are a casual debater. Use simple language, straightforward arguments, and make occasional logical gaps the user could catch.',
