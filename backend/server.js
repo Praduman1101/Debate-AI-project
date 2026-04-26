@@ -71,3 +71,7 @@ process.on('SIGTERM', () => { server.close(() => process.exit(0)); });
 process.on('SIGINT',  () => { server.close(() => process.exit(0)); });
 
 module.exports = { app, server, io };
+
+app.get("/", (req, res) => {
+  res.send("🚀 Debate AI Backend is Running Successfully!");
+});
