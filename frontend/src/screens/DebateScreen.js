@@ -51,10 +51,22 @@ export default function DebateScreen({ navigation, route }) {
 
   // Connect + start
   useEffect(() => {
-    connectSocket(token);
-    startDebate({ topicId: topic._id, topicTitle: topic.title, topicCategory: topic.category, mode, stance, difficulty, totalRounds });
-    return () => { disconnectSocket(); resetDebate(); };
-  }, []);
+  const init = async () => {
+    // Pehle connect karo, phir debate start karo
+    await connectSocket(token);
+    startDebate({
+      topicId:       topic._id,
+      topicTitle:    topic.title,
+      topicCategory: topic.category,
+      mode,
+      stance,
+      difficulty,
+      totalRounds,
+    });
+  };
+  init();
+  return () => { disconnectSocket(); resetDebate(); };
+}, []);
 
   // Navigate to results
   useEffect(() => {

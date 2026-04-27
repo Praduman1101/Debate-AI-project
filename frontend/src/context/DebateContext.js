@@ -130,8 +130,9 @@ export const DebateProvider = ({ children }) => {
   const [state, dispatch] = useReducer(debateReducer, initialState);
   const socketRef = useRef(null);
 
-  const connectSocket = useCallback((token) => {
-    socketRef.current = socketService.connect(token);
+  const connectSocket = useCallback(async (token) => {
+  try {
+    socketRef.current = await socketService.connect(token);
     const s = socketRef.current;
     s.on('debate:started',   (d) => dispatch({ type: 'DEBATE_STARTED',        payload: d }));
     s.on('debate:state',     (d) => dispatch({ type: 'DEBATE_STATE_RESTORED', payload: d }));
@@ -142,8 +143,11 @@ export const DebateProvider = ({ children }) => {
     s.on('debate:complete',  (d) => dispatch({ type: 'DEBATE_COMPLETE',       payload: d }));
     s.on('debate:abandoned', ()  => dispatch({ type: 'DEBATE_ABANDONED' }));
     s.on('error',            (d) => dispatch({ type: 'SET_ERROR',             payload: d.message }));
-  }, []);
-
+  } catch (err) {
+    console.error('Socket connection failed:', err.message);
+    dispatch({ type: 'SET_ERROR', payload: 'Could not connect to server' });
+  }
+}, []);
   const disconnectSocket = useCallback(() => {
     socketService.disconnect();
     socketRef.current = null;

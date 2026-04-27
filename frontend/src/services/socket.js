@@ -6,23 +6,32 @@ let socket = null;
 
 const socketService = {
   connect(token) {
-    if (socket?.connected) return socket;
+    if (socket?.connected) return Promise.resolve(socket);
 
-    socket = io(SOCKET_URL, {
-      auth:            { token },
-      transports:      ['websocket'],
-      reconnection:    true,
-      reconnectionAttempts: 5,
-      reconnectionDelay:    1000,
-      timeout:         10000,
+    return new Promise((resolve, reject) => {
+      socket = io(SOCKET_URL, {
+        auth:                 { token },
+        transports:           ['websocket', 'polling'],
+        reconnection:         true,
+        reconnectionAttempts: 10,
+        reconnectionDelay:    1000,
+        timeout:              20000,
+      });
+
+      socket.on('connect', () => {
+        console.log('🔌 Socket connected:', socket.id);
+        resolve(socket);
+      });
+
+      socket.on('connect_error', (err) => {
+        console.error('❌ Socket error:', err.message);
+        reject(err);
+      });
+
+      socket.on('disconnect', (reason) => {
+        console.log('🔌 Socket disconnected:', reason);
+      });
     });
-
-    socket.on('connect',          () => console.log('🔌 Socket connected:', socket.id));
-    socket.on('disconnect',       (reason) => console.log('🔌 Socket disconnected:', reason));
-    socket.on('connect_error',    (err)    => console.error('Socket error:', err.message));
-    socket.on('reconnect_attempt',(n)      => console.log(`Socket reconnect attempt ${n}`));
-
-    return socket;
   },
 
   disconnect() {
@@ -50,10 +59,6 @@ const socketService = {
 
   get isConnected() {
     return socket?.connected ?? false;
-  },
-
-  get instance() {
-    return socket;
   },
 };
 
